@@ -17,7 +17,7 @@ class DBSCAN(object):
         assert eps > 0
         self.eps = eps
         self.MinPts = MinPts
-        self.verbose = True
+        self.verbose = verbose
         self.precomputed = precomputed
 
     def fit(self, D):
@@ -34,6 +34,7 @@ class DBSCAN(object):
             #    -1 - Indicates a noise point
             #     0 - Means the point hasn't been considered yet.
             # Initially all labels are 0.
+            #import pudb; pudb.set_trace()
             labels = numpy.zeros(len(D))
 
             # C is the ID of the current cluster.
@@ -44,7 +45,7 @@ class DBSCAN(object):
             # cluster growth is all handled by the 'expandCluster' routine.
             # For each point P in the Dataset D...
             # ('P' is the index of the datapoint, rather than the datapoint itself.)
-            for P in tqdm(range(0, len(D)), disable=not self.verbose):
+            for P in tqdm(range(0, len(D)), disable=(not self.verbose)):
                 # Only points that have not already been claimed can be picked as new
                 # seed points.
                 if not (labels[P] == 0):
@@ -109,7 +110,7 @@ class DBSCAN(object):
                     # If Pn has at least MinPts neighbors, it's a branch point!
                     # Add all of its neighbors to the FIFO queue to be searched.
                     if len(PnNeighborPts) >= MinPts:
-                        NeighborPts = NeighborPts + [n for n in PnNeighborPts if n not in NeighborPts]
+                        NeighborPts = NeighborPts + PnNeighborPts
                     # If Pn *doesn't* have enough neighbors, then it's a leaf point.
                     # Don't queue up it's neighbors as expansion points.
                     #else:
@@ -142,7 +143,7 @@ class DBSCAN(object):
                 Usin precomputed distances from P to all other points.
                 Return indeces of neighboors within eps
                 """
-                neighbors = numpy.nonzero(D[P]>eps)[0].tolist() # ">" in case of cosine distance
+                neighbors = numpy.nonzero(D[P]<eps)[0].tolist() # ">" in case of cosine distance
 
                 return neighbors
             self.labels = MyDBSCAN(D, self.eps, self.MinPts)
