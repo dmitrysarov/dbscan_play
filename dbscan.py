@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-This is a simple implementation of DBSCAN intended to explain the algorithm.
-
-@author: Chris McCormick
-"""
 
 import numpy
 import logging
@@ -14,12 +9,22 @@ logger = logging.getLogger(__name__)
 
 class DBSCAN(object):
 
-    def __init__(self, eps, MinPts, verbose = True, precomputed = True):
+    def __init__(self, eps, MinPts, verbose = True, precomputed = True, metric = 'cosine'):
+        """
+        arguments:
+            eps
+            MinPts
+            verbose
+            precomputed - use precomputed distances matrxi D
+            metric - should be 'cosine' or 'euclidian'
+        """
         assert eps > 0
+        assert metric in ('euclidian','cosine')
         self.eps = eps
         self.MinPts = MinPts
         self.verbose = verbose
         self.precomputed = precomputed
+        self.metric = metric
 
     def fit(self, D):
 
@@ -132,8 +137,16 @@ class DBSCAN(object):
                 # For each point in the dataset...
                 for Pn in range(0, len(D)):
                     # If the distance is below the threshold, add it to the neighbors list.
-                    if numpy.linalg.norm(D[P] - D[Pn]) < eps:
-                        neighbors.append(Pn)
+                    if self.metric == 'euclidian':
+                        distance = numpy.linalg.norm(D[P] - D[Pn])
+                        if  distance < eps:
+                            neighbors.append(Pn)
+                    elif self.metric == 'cosine': #data should be shifted to zero (zeromean)
+                        D_p_norm = numpy.linalg.norm(D[P])
+                        D_pn_norm = numpy.linalg.norm(D[Pn])
+                        distance = (D_p_norm**2+D_pn_norm**2 - numpy.linalg.norm(D[P] - D[Pn])**2)/(2*D_p_norm*D_pn_norm)
+                        if  distance > eps: # cosine is a decreasing function
+                            neighbors.append(Pn)
                 return len(neighbors), neighbors
             self.labels = MyDBSCAN(D, self.eps, self.MinPts)
         else:
@@ -144,11 +157,17 @@ class DBSCAN(object):
                 Return indeces of neighboors within eps
                 """
                 if NeighborPts is None: #initial version
-                    neighbors = numpy.nonzero(D[P]<eps)[0].tolist() # ">" in case of cosine distance
+                    if self.metric == 'euclidian':
+                        neighbors = numpy.nonzero(D[P]<eps)[0]
+                    elif self.metric == 'cosine':
+                        neighbors = numpy.nonzero(D[P]>eps)[0]
                     return len(neighbors), neighbors
                 else:
                     # due to economy of memmory return only unlabeled neighbors
-                    neighbors = numpy.nonzero(D[P]<eps)[0]
+                    if self.metric == 'euclidian':
+                        neighbors = numpy.nonzero(D[P]<eps)[0]
+                    elif self.metric == 'cosine':
+                        neighbors = numpy.nonzero(D[P]>eps)[0]
                     labeled_NeighborPts_bool = numpy.zeros(len(D), dtype = numpy.bool)
                     labeled_NeighborPts_bool[NeighborPts] = True
                     query_NeighborPts_bool = numpy.zeros(len(D), dtype = numpy.bool)
