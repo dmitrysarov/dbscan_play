@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
 class DBSCAN(object):
 
     def __init__(self, eps, MinPts, verbose = True, precomputed = True):
@@ -21,6 +22,7 @@ class DBSCAN(object):
         self.precomputed = precomputed
 
     def fit(self, D):
+
         def MyDBSCAN(D, eps, MinPts):
             """
             Cluster the dataset `D` using the DBSCAN algorithm.
@@ -51,14 +53,14 @@ class DBSCAN(object):
                 if not (labels[P] == 0):
                     continue
                 # Find all of P's neighboring points.
-                NeighborPts = regionQuery(D, P, eps)
+                NumNeighborPts, NeighborPts = regionQuery(D, P, eps)
                 # If the number is below MinPts, this point is noise.
                 # This is the only condition under which a point is labeled
                 # NOISE--when it's not a valid seed point. A NOISE point may later
                 # be picked up by another cluster as a boundary point (this is the only
                 # condition under which a cluster label can change--from NOISE to
                 # something else).
-                if len(NeighborPts) < MinPts:
+                if NumNeighborPts < MinPts:
                     labels[P] = -1
                 # Otherwise, if there are at least MinPts nearby, use this point as the
                 # seed for a new cluster.
@@ -67,8 +69,6 @@ class DBSCAN(object):
                     growCluster(D, labels, P, NeighborPts, C, eps, MinPts)
             # All data has been clustered!
             return labels
-
-
         def growCluster(D, labels, P, NeighborPts, C, eps, MinPts):
             """
             Grow a new cluster with label `C` from the seed point `P`.
@@ -106,11 +106,11 @@ class DBSCAN(object):
                     # Add Pn to cluster C (Assign cluster label C).
                     labels[Pn] = C
                     # Find all the neighbors of Pn
-                    PnNeighborPts = regionQuery(D, Pn, eps)
+                    PnNeighborPts_Num, PnNeighborPts = regionQuery(D, Pn, eps, NeighborPts)
                     # If Pn has at least MinPts neighbors, it's a branch point!
                     # Add all of its neighbors to the FIFO queue to be searched.
-                    if len(PnNeighborPts) >= MinPts:
-                        NeighborPts = NeighborPts + PnNeighborPts
+                    if PnNeighborPts_Num >= MinPts:
+                        NeighborPts = numpy.concatenate((NeighborPts, PnNeighborPts))
                     # If Pn *doesn't* have enough neighbors, then it's a leaf point.
                     # Don't queue up it's neighbors as expansion points.
                     #else:
@@ -121,7 +121,7 @@ class DBSCAN(object):
             # We've finished growing cluster C!
 
         if self.precomputed == False:
-            def regionQuery(D, P, eps):
+            def regionQuery(D, P, eps, lables = None):
                 """
                 Find all points in dataset `D` within distance `eps` of point `P`.
                 This function calculates the distance between a point P and every other
@@ -134,17 +134,26 @@ class DBSCAN(object):
                     # If the distance is below the threshold, add it to the neighbors list.
                     if numpy.linalg.norm(D[P] - D[Pn]) < eps:
                         neighbors.append(Pn)
-                return neighbors
+                return len(neighbors), neighbors
             self.labels = MyDBSCAN(D, self.eps, self.MinPts)
         else:
             logger.info('Using precomputed distances')
-            def regionQuery(D, P, eps):
+            def regionQuery(D, P, eps, NeighborPts = None):
                 """
                 Usin precomputed distances from P to all other points.
                 Return indeces of neighboors within eps
                 """
-                neighbors = numpy.nonzero(D[P]<eps)[0].tolist() # ">" in case of cosine distance
-
-                return neighbors
+                if NeighborPts is None: #initial version
+                    neighbors = numpy.nonzero(D[P]<eps)[0].tolist() # ">" in case of cosine distance
+                    return len(neighbors), neighbors
+                else:
+                    # due to economy of memmory return only unlabeled neighbors
+                    neighbors = numpy.nonzero(D[P]<eps)[0]
+                    labeled_NeighborPts_bool = numpy.zeros(len(D), dtype = numpy.bool)
+                    labeled_NeighborPts_bool[NeighborPts] = True
+                    query_NeighborPts_bool = numpy.zeros(len(D), dtype = numpy.bool)
+                    query_NeighborPts_bool[neighbors] = True
+                    not_labeled = numpy.nonzero((labeled_NeighborPts_bool + query_NeighborPts_bool)!=labeled_NeighborPts_bool)[0] #get only not labeles points
+                    return len(neighbors), not_labeled
             self.labels = MyDBSCAN(D, self.eps, self.MinPts)
 
